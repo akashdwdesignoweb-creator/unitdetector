@@ -4,11 +4,13 @@ import base64
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
+from dotenv import load_dotenv
 
 
 
-api_key = 'AIzaSyDErxn3sL0GgmPGh9cOH4VxcSmX1cKVAqA'
+load_dotenv()
 
+api_key = os.getenv("GEMINI_API_KEY")
 
 image_path = "image9.png" 
 
@@ -140,20 +142,52 @@ except IOError:
     # Fallback if arial is not available
     font = ImageFont.load_default()
 
+# for det in detections:
+#     try:
+#         # Ensure coordinates are integers
+#         x1, y1, x2, y2 = int(det["x1"]), int(det["y1"]), int(det["x2"]), int(det["y2"])
+#         label = det["label"]
+        
+#         # Draw the bounding box
+#         draw.rectangle([x1, y1, x2, y2], outline="green", width=3)
+        
+#         # Draw the label text, positioned slightly above the box
+#         draw.text((x1, max(0, y1 - 25)), label, fill="red", font=font)
+        
+#     except (KeyError, ValueError) as e:
+#         print(f"Skipping malformed detection: {det}. Error: {e}")
+
+# Convert to RGBA for transparency support
+img = img.convert("RGBA")
+
+# Create a transparent overlay
+overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+draw = ImageDraw.Draw(overlay)
+
 for det in detections:
     try:
-        # Ensure coordinates are integers
         x1, y1, x2, y2 = int(det["x1"]), int(det["y1"]), int(det["x2"]), int(det["y2"])
         label = det["label"]
-        
-        # Draw the bounding box
-        draw.rectangle([x1, y1, x2, y2], outline="green", width=3)
-        
-        # Draw the label text, positioned slightly above the box
-        draw.text((x1, max(0, y1 - 25)), label, fill="red", font=font)
-        
+
+        # Draw semi-transparent green rectangle
+        draw.rectangle([x1, y1, x2, y2], fill=(0, 255, 0, 100))  # (R, G, B, Alpha)
+
+        # Add a defined green border (slightly darker and fully opaque)
+        draw.rectangle([x1, y1, x2, y2], outline=(0, 200, 0, 255), width=2)
+
+        # Optional: draw label text on top of highlight
+        draw.text((x1 + 5, max(0, y1 - 25)), label, fill=(255, 0, 0, 255), font=font)
+
     except (KeyError, ValueError) as e:
         print(f"Skipping malformed detection: {det}. Error: {e}")
+
+# Blend overlay with original image (alpha compositing)
+img = Image.alpha_composite(img, overlay)
+
+# Convert back to RGB before saving (JPEG doesn’t support alpha channel)
+img = img.convert("RGB")
+
+
 
 out_path = "output_gemini_rest.jpg"
 img.save(out_path)
