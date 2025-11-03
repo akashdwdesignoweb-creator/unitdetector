@@ -12,7 +12,7 @@ load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
 
-image_path = "image9.png" 
+image_path = "0003.jpg"  
 
 
 if not os.path.exists(image_path):
@@ -37,24 +37,30 @@ except Exception as e:
 # ----------------------------
 prompt_text = (
     """
-    1. Detect all individual floor units in the building.
-2. Identify each unit uniquely (e.g., "Unit 1", "Unit 2", etc.).
-3. Provide the coordinates of each unit as a bounding box (x1, y1, x2, y2) in **pixel coordinates** relative to the image.
-    4. Return the result **strictly in JSON format** as an array of objects with the keys:
-   - "label": unique unit name
-   - "x1": top-left x coordinate
-   - "y1": top-left y coordinate
-   - "x2": bottom-right x coordinate
-   - "y2": bottom-right y coordinate
+    You are analyzing a high-resolution building image. Detect **all individual floor units** in the building façade. 
 
-Example output:
+Requirements:
+1. Return only **visible units** on the façade. Ignore background, sky, trees, cars, or other objects.
+2. Each unit should be assigned a **unique label**: "Unit 1", "Unit 2", etc.
+3. Include the **floor number**: the top-most row is the highest floor, floor numbers decrease downward.
+4. Return the **pixel coordinates** of the unit as a bounding box: "x1", "y1" (top-left), "x2", "y2" (bottom-right).
+   - Coordinates must be **exact pixel values relative to the original image**.
+   - Origin is top-left (0,0). Do not exceed image width or height.
+
+ 5.there are 6 floors in the building and each floor will be having 2 units . Please make sure to be within the building facade only. 
+ Always start from the bottom of the building which is floor 1 and go upto floor 6 which is the topmost floor. 
+
+Output format: **JSON array ONLY**, like this:
+
 [
-  {"label": "Unit 1", "x1": 10, "y1": 20, "x2": 100, "y2": 200},
-  {"label": "Unit 2", "x1": 110, "y1": 20, "x2": 200, "y2": 200}
+  {"label": "Unit 1", "floor": 3, "x1": 120, "y1": 80, "x2": 230, "y2": 200},
+  {"label": "Unit 2", "floor": 3, "x1": 240, "y1": 80, "x2": 350, "y2": 200}
 ]
 
-Do not include any text outside the JSON array.
-Analyze the image carefully and detect all visible floor units accurately."""
+**Do not include any text outside the JSON array.** Ensure coordinates are strictly within the building façade.
+make sure you double check the coordinates for accuracy and completeness. make sure you cover all the units in the building.
+
+"""
     
 )
 
@@ -87,7 +93,7 @@ headers = {
 # 4Send POST request to Gemini REST API
 # (CRITICAL FIX: Changed URL to use v1beta and the standard model:endpoint format)
 # The most stable REST format uses v1beta and a colon (:) separator
-url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={api_key}"
 response = requests.post(url, headers=headers, json=payload)
 
 if response.status_code != 200:
@@ -192,3 +198,18 @@ img = img.convert("RGB")
 out_path = "output_gemini_rest.jpg"
 img.save(out_path)
 print(f"[✅] Annotated image saved to {out_path}")
+
+# -------------------------------
+# 💾 Save detections to JSON file
+# -------------------------------
+if detections:
+    base_dir = os.path.dirname(image_path)
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    json_path = os.path.join(base_dir, f"{base_name}_units_gemini.json")
+
+    with open(json_path, "w", encoding="utf-8") as jf:
+        json.dump(detections, jf, indent=4, ensure_ascii=False)
+
+    print(f"[📁] Detection JSON saved to: {json_path}")
+else:
+    print("[⚠️] No valid detections found — JSON not saved.")
